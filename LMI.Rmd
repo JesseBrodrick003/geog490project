@@ -21,7 +21,7 @@ library(spdep)
 library(tmap)
 getwd()
 
-df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/Project/data/GlblFW/CTCL1.csv")
+df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/project/GlblFW/CTCL1.csv")
 
 ```
 

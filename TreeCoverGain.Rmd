@@ -19,7 +19,7 @@ library(classInt)
 library(spdep)
 getwd()
 
-df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/geog490project/docs/project/GlblFW/CTCL1.csv")
+df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/Project/data/GlblFW/CTCL1.csv")
 
 
 ```

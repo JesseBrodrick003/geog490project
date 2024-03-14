@@ -1,0 +1,42 @@
+---
+title: "About"
+author: "Jesse Brodrick"
+date: "2024-03-12"
+output: html_document
+---
+# Global Forest Watch Data Used to Estimate County Level Gains and Losses in Primary Forests Since 2000
+
+## History and Project Overview:
+
+### Tree Canopy Cover-
+
+#### In 2013, experts at the University of Maryland’s (UMD) GLAD Lab published the Tree Canopy Cover data set, which maps tree canopy cover across the globe at a 30-meter resolution and is available on GFW for the years 2000 and 2010. This data set was among the first efforts to map tree cover at a global scale using medium resolution imagery. Furthermore, it established a baseline for the annual tree cover loss data; these data sets together served as the basis for the launch of Global Forest Watch in 2014.
+
+##### The Tree Canopy Cover layer estimates percent tree cover, which measures the density of tree canopy cover within a 30-meter pixel. The data set defines trees as all vegetation of at least five meters in height and is derived from Landsat imagery.  
+
+### Tree Cover Height- 
+
+#### In 2021, experts at the UMD’s GLAD Lab published the Tree Cover Height data set, which maps tree cover height across the globe at a 30-meter resolution and is available on GFW for the years 2000 and 2020. This data set allows for improved detection of tree cover gain and serves as the basis for the 20-year net change data on GFW which is what this project uses. Unlike tree canopy cover, which reaches its maximum soon after tree growth begins, tree height changes gradually and is linearly related to forest biomass and carbon storage.  
+
+#### The Tree Cover Height dataset estimates percent tree cover, which measures the density of tree canopy cover within a 30-meter pixel.The data set defines trees as woody vegetation of at least three meters in height and is derived from Global Ecosystem Dynamics Investigation (GEDI) LiDAR measurements and Landsat imagery. This data set estimates the 95th percentile of tree canopy height, and accordingly will represent the upper bounds of height for pixels with fractional tree cover, or pixels with variable canopy height. 
+
+
+## Materials and Methods: 
+
+#### The materials consist of a GFW dataset on a subnational2 county level for tree cover change. Several packages including (-tidyverse, -sf, -ggplot2,- RColorBrewer,-tigris, -ggplot2, -classInt, -spdep).  
+
+#### Global Forest watch provides thresholds or amount of tree canopy coverage for 0, 10, 20, 30, 50, and 75 percent for 20 years of forest cover gain/loss in hecatares. In order to stay consistent, as well complete a valid spatial join I used 50% threshold of very dense forest (VDF) and, moderately dense forests (MDF) in which I joined by state and county to Census Boundaries from the TIGRIS package. 
+
+#### Local Morans I:Identifying local clusters and local spatial outliers using row-standardized weights.
+
+## Results:
+
+## Discussion: 
+
+## Conclusion: 
+
+## Acknowledgments and References: 
+
+
+
+
