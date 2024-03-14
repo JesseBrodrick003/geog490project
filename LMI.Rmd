@@ -1,0 +1,135 @@
+---
+title: "Local Moran's I Clustering Analysis"
+author: "Jesse Brodrick"
+date: "2024-03-14"
+output: html_document
+---
+
+## 20 year Tree Cover Gain Anlaysis with Spatial Distribution and Clustering
+
+
+### Reading in libraries and dataset
+```{r}
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(RColorBrewer)
+library(tigris)
+library(ggplot2)
+library(classInt)
+library(spdep)
+library(tmap)
+getwd()
+
+df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/Project/data/GlblFW/CTCL1.csv")
+
+```
+
+## Basemap and projection
+```{r}
+# Options to return tigris objects as sf objects
+options(tigris_class = "sf")
+options(tigris_use_cache = TRUE)
+
+# Obtain state boundaries
+states_sf <- states(cb = TRUE)
+
+# Obtain county boundaries
+counties_sf <- counties(cb = TRUE)
+
+# Filter for western states and their counties
+western_states <- c("Washington", "Oregon", "California", "Idaho", "Nevada",
+                    "Montana", "Utah", "Arizona", "Wyoming", "Colorado", "New Mexico",
+                    "North Dakota", "South Dakota", "Nebraska", "Kansas", "Oklahoma", "Texas")
+
+# Filter state and counties for western states sf
+wus_states_sf <- states_sf[states_sf$NAME %in% western_states, ]
+
+wus_counties_sf <- counties_sf[counties_sf$STATE_NAME %in% western_states, ]
+
+ 
+
+# Projection
+laea = st_crs("+proj=laea +lat_0=30 +lon_0=-100") # Lambert Azimuthal Equal Area
+
+wus_states_sf_pro = st_transform(wus_states_sf, laea)
+
+wus_counties_sf_pro = st_transform(wus_counties_sf, laea)
+```
+
+
+## Subset and merge Global Forest Watch data and projected US Census boundaries
+
+### Global Forest watch provides thresholds or amount of tree canopy coverage (density of 30m resolution) for 0, 10, 20, 30, 50, and 75 percent for 20 years of forest cover gain/loss in hecatares. 
+
+```{r}
+# Subset data based on the western states with a canopy density threshold of 50
+df_subset <- df[df$subnational1 %in% western_states, ] %>% 
+                  filter(threshold == 50)
+
+head(df_subset)
+
+# Merging projected SF to GFW data frame
+wus_gbl_merge <- wus_counties_sf_pro %>%
+  left_join(df_subset, by = c("STATE_NAME" = "subnational1", "NAME" = "subnational2"))
+
+# Replacing NA's with zero
+wus_gbl_merge <- wus_gbl_merge %>%
+  mutate(gain_2000_2020_ha = replace_na(gain_2000_2020_ha, 0))
+
+
+```
+
+
+## Local Moran's I
+
+```{r}
+
+nb <- poly2nb(wus_gbl_merge, queen=TRUE)
+
+nb[1]
+
+lw <- nb2listw(nb, style="W", zero.policy=TRUE)
+
+lw$weights[1]
+
+gain.lag <- lag.listw(lw, wus_gbl_merge$gain_2000_2020_ha)
+gain.lag
+
+plot(gain.lag ~ wus_gbl_merge$gain_2000_2020_ha, pch=16, asp=1)
+M1 <- lm(gain.lag ~ wus_gbl_merge$gain_2000_2020_ha)
+abline(M1, col="blue")
+
+coef(M1)[2]
+
+I <- moran(wus_gbl_merge$gain_2000_2020_ha, lw, length(nb), Szero(lw))[1]
+I
+
+moran.test(wus_gbl_merge$gain_2000_2020_ha,lw, alternative="greater")
+
+####There is less than a 6% likelihood that the observed pattern could be the result of random chance
+
+#p-value of 2.2e-16 suggesting that there would be a an extremely low chance of being wrong in rejecting the null hypothesis or that there is a 0.000.. chance that our observed pattern is consistent with a random process 
+
+MC<- moran.mc(wus_gbl_merge$gain_2000_2020_ha, lw, nsim=999, alternative="greater")
+
+# View results (including p-value)
+MC
+
+# Plot the Null distribution (note that this is a density plot instead of a histogram)
+plot(MC)
+
+#The curve shows the distribution of Moran I values we could expect had the incomes been randomly distributed across the counties. Note that our observed statistic, 0.54995, falls  to the right of the distribution suggesting that the income values are clustered (a positive Moran’s I value suggests clustering whereas a negative Moran’s I value suggests dispersion).
+
+set.seed(131)
+wus_gbl_merge$rand1 <- sample(wus_gbl_merge$gain_2000_2020_ha, length(wus_gbl_merge$gain_2000_2020_ha), replace = FALSE)
+wus_gbl_merge$rand2 <- sample(wus_gbl_merge$gain_2000_2020_ha, length(wus_gbl_merge$gain_2000_2020_ha), replace = FALSE)
+wus_gbl_merge$rand3 <- sample(wus_gbl_merge$gain_2000_2020_ha, length(wus_gbl_merge$gain_2000_2020_ha), replace = FALSE)
+
+tm_shape(wus_gbl_merge) + tm_fill(col=c("gain_2000_2020_ha", "rand1", "rand2", "rand3"),
+                      style="quantile", n=8, palette="Greens", legend.show = FALSE) +
+              tm_facets( nrow=1)
+
+```
+
+

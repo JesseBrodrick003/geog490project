@@ -1,0 +1,204 @@
+---
+title: "Tree Cover change in the Western U.S (50% threshold in 30m resolution)"
+author: "Jesse Brodrick"
+date: "2024-03-14"
+output: html_document
+---
+
+# 20 year Tree Cover Gain Mapping Anlaysis with Global Forest Watch Data 
+
+### Reading in libraries and dataset
+```{r}
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(RColorBrewer)
+library(tigris)
+library(ggplot2)
+library(classInt)
+library(spdep)
+getwd()
+
+df <- read_csv("/Users/jessebrodrick/Desktop/GEOG490/geog490project/docs/project/GlblFW/CTCL1.csv")
+
+
+```
+
+
+## Basemap and projection
+```{r}
+
+# Options to return tigris objects as sf objects
+options(tigris_class = "sf")
+options(tigris_use_cache = TRUE)
+
+# Obtain state boundaries
+states_sf <- states(cb = TRUE)
+
+# Obtain county boundaries
+counties_sf <- counties(cb = TRUE)
+
+# Filter for western states and their counties
+western_states <- c("Washington", "Oregon", "California", "Idaho", "Nevada",
+                    "Montana", "Utah", "Arizona", "Wyoming", "Colorado", "New Mexico",
+                    "North Dakota", "South Dakota", "Nebraska", "Kansas", "Oklahoma", "Texas")
+
+# Filter state and counties for western states sf
+wus_states_sf <- states_sf[states_sf$NAME %in% western_states, ]
+
+wus_counties_sf <- counties_sf[counties_sf$STATE_NAME %in% western_states, ]
+
+# Check plot
+ggplot() +
+  geom_sf(data = wus_states_sf, fill = NA, color = "black", size = 0.6) +
+  geom_sf(data = wus_counties_sf, fill = NA, color = "grey", size = 0.3) +
+  theme_minimal() 
+ 
+
+# Projection
+laea = st_crs("+proj=laea +lat_0=30 +lon_0=-100") # Lambert Azimuthal Equal Area
+
+wus_states_sf_pro = st_transform(wus_states_sf, laea)
+
+wus_counties_sf_pro = st_transform(wus_counties_sf, laea)
+
+# Check plot
+ggplot() +
+  geom_sf(data = wus_states_sf_pro, fill = NA, color = "black", size = 0.6) +
+  geom_sf(data = wus_counties_sf_pro, fill = NA, color = "grey", size = 0.3) +
+  theme_minimal() +
+  labs(title = "Western US States and Counties")
+
+```
+## Subset and merge Global Forest Watch data and projected US Census boundaries
+
+### Global Forest watch provides thresholds or amount of tree canopy coverage (density of 30m resolution) for 0, 10, 20, 30, 50, and 75 percent for 20 years of forest cover gain/loss in hecatares. 
+```{r}
+# Subset data based on the western states with a canopy density threshold of 50
+df_subset <- df[df$subnational1 %in% western_states, ] %>% 
+                  filter(threshold == 50)
+
+head(df_subset)
+
+# Merging projected SF to GFW data frame
+wus_gbl_merge <- wus_counties_sf_pro %>%
+  left_join(df_subset, by = c("STATE_NAME" = "subnational1", "NAME" = "subnational2"))
+
+# Replacing NA's with zero
+wus_gbl_merge <- wus_gbl_merge %>%
+  mutate(gain_2000_2020_ha = replace_na(gain_2000_2020_ha, 0))
+
+
+head(wus_gbl_merge)
+
+summary(wus_gbl_merge$gain_2000_2020_ha)
+
+ 
+  
+```
+###Plotting Tree Cover Gain at 50% Canopy Cover Threshold over 20 years
+```{r}
+# Classifying data for visualization using natural jenks method
+ctpnts <- classIntervals(wus_gbl_merge$gain_2000_2020_ha, n = 6, style = "jenks")
+
+cols <- brewer.pal(6, "YlGn")
+
+colors <- colorRampPalette(cols)(length(ctpnts$brks)-1)
+
+# Plotting 
+ggplot(wus_gbl_merge) +
+  geom_sf(aes(fill = gain_2000_2020_ha)) +  
+  scale_fill_gradientn(colors = colors,
+                      breaks = ctpnts$brks[-length(ctpnts$brks)],
+                       labels = rev(paste(round(ctpnts$brks[-length(ctpnts$brks)], 1), "to",
+                                      round(ctpnts$brks[-1], 1))),
+                       limits = range(wus_gbl_merge$gain_2000_2020_ha)) +
+  labs(title = "20 Year Primary Forest Tree Cover Gain (50% threshold)", fill = "Gain (hectares)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "right",
+        legend.background = element_rect(fill = "white", colour = "black"),
+        legend.key = element_blank(), 
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)) +
+  guides(fill = guide_legend(override.aes = list(fill = rev(colors)))) +
+   geom_sf(data = wus_states_sf_pro, fill = NA, color = "black", size = 1.5) 
+
+
+
+```
+### Assess spatial distribution of Canopy Cover Gain  Descriptive statistics
+
+```{r}
+# Summary statistics
+summary(wus_gbl_merge$gain_2000_2020_ha)
+
+# Histogram 
+ggplot(wus_gbl_merge, aes(x = gain_2000_2020_ha)) +
+  geom_histogram(binwidth = 200, fill = "skyblue", color = "black") +
+  labs(title = "Histogram", x = "Tree Cover Gain (ha)", y = "Frequency")
+
+# Boxplot highlighting PNW outliers by state
+PNW <- c("Washington", "Oregon", "California", "Idaho", "Montana")
+
+PNW_SF <- wus_gbl_merge[wus_gbl_merge$STATE_NAME %in% PNW, ]
+
+head(PNW_SF)
+
+quantile(wus_gbl_merge$gain_2000_2020_ha)
+
+ggplot(PNW_SF, aes(x = STATE_NAME, y = gain_2000_2020_ha)) +  
+  geom_boxplot(width = 0.5, outlier.shape = 8, outlier.color = "red", outlier.size = 3) + 
+  labs(title = "Boxplot of Tree Cover Gain by State", y = "Tree Cover Gain (ha)", x = "") +
+  facet_wrap( ~ STATE_NAME, scales = "free_x", ncol = 2) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "none",
+        axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank()) +
+  coord_cartesian(ylim = c(-0, 25000)) 
+
+  
+# Creating standard distribution table to visualize amount of object values within sd break points
+mean_gain <- mean(wus_gbl_merge$gain_2000_2020_ha, na.rm = TRUE)
+
+sd_gain <- sd(wus_gbl_merge$gain_2000_2020_ha, na.rm = TRUE)
+
+labels <- c("<-2 SD", "-2 SD to -1 SD", "-1 SD to mean", "mean to 1 SD", " 1 SD to 2 SD", ">2 SD")
+
+breakpoints <- c(-Inf, mean_gain - 2*sd_gain, mean_gain - sd_gain, mean_gain, mean_gain + sd_gain, mean_gain + 2*sd_gain, Inf)
+
+wus_gbl_merge$categories <- cut(wus_gbl_merge$gain_2000_2020_ha, breaks = breakpoints, labels = labels)
+
+table(wus_gbl_merge$categories)
+```
+
+### Plotting distribution of canopy cover change map
+```{r}
+#
+breakpoints <- c(-Inf, mean_gain, mean_gain + sd_gain, mean_gain + 2*sd_gain, Inf)
+labels <- c("Below Average (<-2 SD to mean)", "Average (mean to 1 SD)", "Above Average(1 SD to 2 SD)", "Exceptionally High(>2 SD)")
+
+
+colors <- brewer.pal(4, "YlGn")
+
+# Create a factor with labels based on cut points
+wus_gbl_merge$gain_category <- cut(wus_gbl_merge$gain_2000_2020_ha, 
+                                   breaks = breakpoints, 
+                                   labels = labels)
+
+# Plot
+ggplot(wus_gbl_merge) +
+  geom_sf(aes(fill = gain_category)) +  
+  scale_fill_manual(values = colors) +
+  labs(title = "Tree Cover Gain Distribution (50% threshold)",
+       fill = "Tree Cover Gain (SD)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "right",
+        legend.background = element_rect(fill = "white", colour = "black"),
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 10, face = "bold")) +
+   geom_sf(data = wus_states_sf_pro, fill = NA, color = "black", size = 1.5) 
+
+
+```
+
